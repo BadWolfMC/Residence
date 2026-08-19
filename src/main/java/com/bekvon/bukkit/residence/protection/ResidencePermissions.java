@@ -92,6 +92,8 @@ public class ResidencePermissions extends FlagPermissions {
 
     @Override
     public boolean playerHas(Player player, Flags flag, FlagCombo f) {
+        if (player == null)
+            return false;
         return playerHas(player.getUniqueId(), flag, f);
     }
 
@@ -323,6 +325,33 @@ public class ResidencePermissions extends FlagPermissions {
         }
 
         lm.Residence_PermissionsApply.sendMessage(player);
+    }
+
+    public void mirrorPlayerFlags(CommandSender sender, UUID sourceUUID, UUID targetUUID, boolean resadmin) {
+
+        if (sourceUUID == null || targetUUID == null || sourceUUID.equals(targetUUID)) {
+            lm.Invalid_Player.sendMessage(sender);
+            return;
+        }
+
+        if (!resadmin && !residence.isOwner(sender) && !this.playerHas(sender, Flags.admin, false)) {
+            lm.General_NoPermission.sendMessage(sender);
+            return;
+        }
+
+        Map<String, Boolean> source = this.getPlayerFlags(sourceUUID);
+        if (source == null || source.isEmpty()) {
+            lm.Flag_MirrorNoFlags.sendMessage(sender, ResidencePlayer.getName(sourceUUID), residence.getName());
+            return;
+        }
+
+        int applied = 0;
+        for (Entry<String, Boolean> flag : new HashMap<String, Boolean>(source).entrySet()) {
+            if (this.setPlayerFlag(sender, targetUUID, flag.getKey(), flag.getValue() ? FlagState.TRUE : FlagState.FALSE, resadmin, false, !resadmin))
+                applied++;
+        }
+
+        lm.Flag_MirrorApply.sendMessage(sender, applied, ResidencePlayer.getName(sourceUUID), ResidencePlayer.getName(targetUUID));
     }
 
     public boolean hasResidencePermission(CommandSender sender, boolean requireOwner) {
