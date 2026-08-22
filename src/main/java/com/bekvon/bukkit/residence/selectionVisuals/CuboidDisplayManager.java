@@ -11,7 +11,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -19,7 +18,6 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 
 import com.bekvon.bukkit.residence.Residence;
-import com.bekvon.bukkit.residence.event.ResidenceSelectionVisualizationEvent;
 import com.bekvon.bukkit.residence.protection.CuboidArea;
 import com.bekvon.bukkit.residence.selection.VisualizerConfig;
 
@@ -48,9 +46,13 @@ public class CuboidDisplayManager implements Listener {
         RECALCULATE_DISTANCE_SQUARED = RECALCULATE_DISTANCE * RECALCULATE_DISTANCE;
     }
 
-    public static void add(Player player, List<CuboidArea> areas, CuboidDisplayType type, double hideInSeconds, int range, int gridSize) {
+    public static void add(Player player, List<CuboidArea> areas, CuboidDisplayType type) {
+        add(player, areas, type, type.getHideInSeconds(), type.getRange(), type.getGridSize());
+    }
 
-        List<CuboidDisplay> ls = getAreas(player, areas, type, hideInSeconds);
+    public static void add(Player player, List<CuboidArea> areas, CuboidDisplayType type, double hideInSeconds, int range, double gridSize) {
+
+        List<CuboidDisplay> ls = getAreas(player, areas, type);
 
         PlayerData data = getPlayerData(player);
 
@@ -63,6 +65,7 @@ public class CuboidDisplayManager implements Listener {
 
             display.setRange(range);
             display.setGridSize(gridSize);
+            display.recalculate();
 
             display.show();
             data.displays.add(display);
@@ -81,6 +84,7 @@ public class CuboidDisplayManager implements Listener {
         display.setEdgeMaterial(type.getEdgeMaterial());
         display.setSideMaterial(type.getSideMaterial());
         display.removeAfter(hideInSeconds);
+        display.recalculate();
         display.show();
 
         data.displays.add(display);
@@ -124,17 +128,6 @@ public class CuboidDisplayManager implements Listener {
             display.clear();
 
         data.displays.clear();
-    }
-
-    @EventHandler(priority = EventPriority.NORMAL)
-    public void onVisualize(ResidenceSelectionVisualizationEvent event) {
-
-        if (!VisualizerConfig.isUseModernVersion())
-            return;
-
-        show(event.getPlayer(), event.getAreas(), event.getErrorAreas());
-
-        event.setCancelled(true);
     }
 
     @EventHandler
@@ -215,25 +208,21 @@ public class CuboidDisplayManager implements Listener {
         show(player, getAreas(player, areas, errorAreas));
     }
 
-    private static List<CuboidDisplay> getAreas(Player player, List<CuboidArea> areas, List<CuboidArea> errorAreas, double hideInSeconds) {
-        return getAreas(player, areas, errorAreas, null, hideInSeconds);
-    }
-
     private static List<CuboidDisplay> getAreas(Player player, List<CuboidArea> areas, List<CuboidArea> errorAreas) {
-        return getAreas(player, areas, errorAreas, null, VisualizerConfig.getShowForMs() / 1000D);
+        return getAreas(player, areas, errorAreas, null);
     }
 
-    private static List<CuboidDisplay> getAreas(Player player, List<CuboidArea> areas, List<CuboidArea> errorAreas, CuboidDisplayType type, double hideInSeconds) {
+    private static List<CuboidDisplay> getAreas(Player player, List<CuboidArea> areas, List<CuboidArea> errorAreas, CuboidDisplayType type) {
 
         List<CuboidDisplay> cd = new ArrayList<>();
 
-        cd.addAll(getAreas(player, areas, type == null ? CuboidDisplayType.SELECTION : type, hideInSeconds));
-        cd.addAll(getAreas(player, errorAreas, type == null ? CuboidDisplayType.ERROR : type, hideInSeconds));
+        cd.addAll(getAreas(player, areas, type == null ? CuboidDisplayType.SELECTION : type));
+        cd.addAll(getAreas(player, errorAreas, type == null ? CuboidDisplayType.ERROR : type));
 
         return cd;
     }
 
-    private static List<CuboidDisplay> getAreas(Player player, List<CuboidArea> areas, CuboidDisplayType type, double hideInSeconds) {
+    private static List<CuboidDisplay> getAreas(Player player, List<CuboidArea> areas, CuboidDisplayType type) {
 
         List<CuboidDisplay> cd = new ArrayList<>();
 
@@ -244,7 +233,10 @@ public class CuboidDisplayManager implements Listener {
             CuboidDisplay display = new CuboidDisplay(player, new CMIBlockWorldArea(area.getLowLocation(), area.getHighLocation()));
             display.setEdgeMaterial(type == null ? CuboidDisplayType.SELECTION.getEdgeMaterial() : type.getEdgeMaterial());
             display.setSideMaterial(type == null ? CuboidDisplayType.SELECTION.getSideMaterial() : type.getSideMaterial());
-            display.removeAfter(hideInSeconds);
+            display.removeAfter(type == null ? 5 : type.getHideInSeconds());
+            display.setLineThickness(type == null ? 0.05 : type.getLineThickness());
+            display.setGridSize(type == null ? 8 : type.getGridSize());
+            display.setRange(type == null ? 32 : type.getRange());
             cd.add(display);
         }
 
@@ -252,7 +244,6 @@ public class CuboidDisplayManager implements Listener {
     }
 
     public static void show(Player player, List<CuboidDisplay> cd) {
-
         PlayerData data = getPlayerData(player);
 
         for (CuboidDisplay display : data.displays)
